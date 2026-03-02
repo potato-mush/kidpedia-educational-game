@@ -1,0 +1,35 @@
+{
+    "name": "Kidpedia - Educational Game",
+    "short_name": "Kidpedia",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#6200EA",
+    "theme_color": "#6200EA",
+    "description": "Interactive educational game for kids. Explore animals, space, science, history, and geography with fun games!",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

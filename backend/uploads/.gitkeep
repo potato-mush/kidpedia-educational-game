@@ -1,0 +1,5 @@
+# Uploads Directory
+
+This directory stores uploaded media files (images, videos, audio).
+
+Files in this directory are served statically at `/uploads/`.

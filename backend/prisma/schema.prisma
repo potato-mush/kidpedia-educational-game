@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User Profile Model
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  avatarId    String
+  createdAt   DateTime @default(now())
+  lastUpdated DateTime @updatedAt
+  
+  progress    Progress[]
+  scores      GameScore[]
+  bookmarks   Bookmark[]
+}
+
+// Topic/Wiki Model
+model Topic {
+  id              String   @id @default(uuid())
+  title           String
+  category        String
+  summary         String
+  content         String
+  imagePaths      String   // JSON array stored as string
+  videoPath       String?
+  audioPath       String?
+  funFacts        String   // JSON array stored as string
+  relatedTopicIds String   // JSON array stored as string
+  thumbnailPath   String
+  createdAt       DateTime @default(now())
+  readCount       Int      @default(0)
+  
+  games           Game[]
+  progress        Progress[]
+  bookmarks       Bookmark[]
+  
+  @@index([category])
+}
+
+// Game Model
+model Game {
+  id                 String   @id @default(uuid())
+  type               String   // 'puzzle', 'sound_match', 'quiz'
+  topicId            String
+  difficulty         String   // 'easy', 'medium', 'hard'
+  configurationData  String   // JSON stored as string
+  title              String
+  description        String
+  createdAt          DateTime @default(now())
+  
+  topic              Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  scores             GameScore[]
+  
+  @@index([topicId])
+  @@index([type])
+  @@index([difficulty])
+}
+
+// Game Score Model
+model GameScore {
+  id          String   @id @default(uuid())
+  userId      String
+  gameId      String
+  score       Int
+  completedAt DateTime @default(now())
+  timeTaken   Int      // in seconds
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([gameId])
+}
+
+// Progress Model
+model Progress {
+  id              String   @id @default(uuid())
+  userId          String
+  topicId         String
+  gamesCompleted  String   // JSON array of game IDs stored as string
+  totalScore      Int      @default(0)
+  lastAccessedAt  DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic           Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
+}
+
+// Badge Model
+model Badge {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  iconPath    String
+  requirement String
+  createdAt   DateTime @default(now())
+  
+  userBadges  UserBadge[]
+}
+
+// User Badge (Many-to-Many)
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+  
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+// Bookmark Model
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  topicId   String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, topicId])
+  @@index([userId])
+}
+
+// Media File Model
+model MediaFile {
+  id         String   @id @default(uuid())
+  name       String
+  path       String   @unique
+  type       String   // 'image', 'video', 'audio'
+  category   String?
+  uploadedAt DateTime @default(now())
+  size       Int      // file size in bytes
+  
+  @@index([type])
+  @@index([category])
+}
+
+// Admin User Model
+model Admin {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String   // hashed password
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
