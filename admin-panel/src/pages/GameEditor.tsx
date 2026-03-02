@@ -299,10 +299,10 @@ const GameEditor = () => {
 
   const createMutation = useMutation({
     mutationFn: (data: GameFormData) => gameService.createGame(data),
-    onSuccess: (createdGame) => {
+    onSuccess: async (createdGame) => {
       console.log('✅ CREATE SUCCESS:', createdGame);
       console.log('Invalidating games query...');
-      queryClient.invalidateQueries({ queryKey: ['games'] });
+      await queryClient.invalidateQueries({ queryKey: ['games'] });
       console.log('Navigating to /games...');
       navigate('/games');
     },
@@ -313,10 +313,12 @@ const GameEditor = () => {
 
   const updateMutation = useMutation({
     mutationFn: (data: GameFormData) => gameService.updateGame(id!, data),
-    onSuccess: (updatedGame) => {
+    onSuccess: async (updatedGame) => {
       console.log('✅ UPDATE SUCCESS:', updatedGame);
-      console.log('Invalidating games query...');
-      queryClient.invalidateQueries({ queryKey: ['games'] });
+      console.log('Invalidating queries...');
+      // Invalidate both the specific game and all games list
+      await queryClient.invalidateQueries({ queryKey: ['game', id] });
+      await queryClient.invalidateQueries({ queryKey: ['games'] });
       console.log('Navigating to /games...');
       navigate('/games');
     },

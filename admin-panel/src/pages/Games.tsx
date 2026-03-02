@@ -21,6 +21,7 @@ const Games = () => {
       console.log(`📦 Received ${result.length} games:`, result.map(g => g.title));
       return result;
     },
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   const { data: topics } = useQuery({
@@ -30,8 +31,8 @@ const Games = () => {
 
   const deleteGameMutation = useMutation({
     mutationFn: (gameId: string) => gameService.deleteGame(gameId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['games'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['games'] });
     },
   });
 

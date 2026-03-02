@@ -169,23 +169,43 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
     
     // Convert configurationData object to JSON string if present
     const updateData: any = { ...req.body };
+    
+    // Remove fields that shouldn't be updated
+    delete updateData.id;
+    delete updateData.createdAt;
+    delete updateData.topic; // Remove populated topic object if present
+    
     if (req.body.configurationData !== undefined) {
       updateData.configurationData = JSON.stringify(req.body.configurationData);
       console.log('Configuration Data (after stringify):', updateData.configurationData);
     }
+    
+    console.log('Update data (after cleanup):', JSON.stringify(updateData, null, 2));
     
     const game = await prisma.game.update({
       where: { id: req.params.id },
       data: updateData
     });
     
-    console.log('Updated game:', game);
-    console.log('Formatted game:', formatGame(game));
+    console.log('✅ Updated game successfully:', game.id);
     
     res.json(formatGame(game));
-  } catch (error) {
-    console.error('Failed to update game:', error);
-    res.status(404).json({ error: 'Game not found' });
+  } catch (error: any) {
+    console.error('❌ Failed to update game:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Full error:', JSON.stringify(error, null, 2));
+    
+    // Check if it's a Prisma "record not found" error
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: 'Game not found' });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to update game',
+        details: error.message || 'Unknown error',
+        code: error.code || 'UNKNOWN'
+      });
+    }
   }
 });
 
@@ -196,8 +216,17 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       where: { id: req.params.id }
     });
     res.status(204).send();
-  } catch (error) {
-    res.status(404).json({ error: 'Game not found' });
+  } catch (error: any) {
+    console.error('Failed to delete game:', error);
+    // Check if it's a Prisma "record not found" error
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: 'Game not found' });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to delete game',
+        details: error.message || 'Unknown error'
+      });
+    }
   }
 });
 
