@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kidpedia/data/services/auth_service.dart';
 import 'package:kidpedia/presentation/providers/app_providers.dart';
 import 'package:kidpedia/presentation/widgets/badge_card.dart';
 import 'package:kidpedia/presentation/screens/leaderboard_screen.dart';
@@ -76,12 +77,17 @@ class ProfileScreen extends ConsumerWidget {
                         onTap: () => _showAvatarSelector(context, ref),
                         child: Stack(
                           children: [
-                            CircleAvatar(
-                              radius: 40,
-                              backgroundColor: Theme.of(context).colorScheme.primary,
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              alignment: Alignment.center,
                               child: _getAvatarWidget(
                                 userProfile?.avatarId ?? 'avatar_default',
-                                80,
+                                64,
                               ),
                             ),
                             Positioned(
@@ -229,52 +235,6 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
 
-        // Settings
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Settings',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ).animate(delay: 700.ms).fadeIn(),
-                const SizedBox(height: 12),
-                Card(
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        title: const Text('Dark Mode'),
-                        subtitle: const Text('Switch between light and dark theme'),
-                        secondary: Icon(
-                          ref.watch(themeModeProvider) == ThemeMode.dark
-                              ? Icons.dark_mode
-                              : Icons.light_mode,
-                        ),
-                        value: ref.watch(themeModeProvider) == ThemeMode.dark,
-                        onChanged: (value) {
-                          ref.read(themeModeProvider.notifier).toggleTheme();
-                        },
-                      ),
-                      const Divider(height: 1),
-                      SwitchListTile(
-                        title: const Text('Large Text'),
-                        subtitle: const Text('Make text easier to read'),
-                        secondary: const Icon(Icons.text_fields),
-                        value: largeTextMode,
-                        onChanged: (value) {
-                          ref.read(largeTextModeProvider.notifier).toggle();
-                        },
-                      ),
-                    ],
-                  ),
-                ).animate(delay: 800.ms).fadeIn().slideY(),
-              ],
-            ),
-          ),
-        ),
-
         // Badges
         SliverToBoxAdapter(
           child: Padding(
@@ -353,6 +313,66 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
 
+        // Settings
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Settings',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ).animate(delay: 700.ms).fadeIn(),
+                const SizedBox(height: 12),
+                Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('Dark Mode'),
+                        subtitle: const Text('Switch between light and dark theme'),
+                        secondary: Icon(
+                          ref.watch(themeModeProvider) == ThemeMode.dark
+                              ? Icons.dark_mode
+                              : Icons.light_mode,
+                        ),
+                        value: ref.watch(themeModeProvider) == ThemeMode.dark,
+                        onChanged: (value) {
+                          ref.read(themeModeProvider.notifier).toggleTheme();
+                        },
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        title: const Text('Large Text'),
+                        subtitle: const Text('Make text easier to read'),
+                        secondary: const Icon(Icons.text_fields),
+                        value: largeTextMode,
+                        onChanged: (value) {
+                          ref.read(largeTextModeProvider.notifier).toggle();
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        title: const Text('Logout'),
+                        subtitle: const Text('Sign out and return to login'),
+                        leading: const Icon(Icons.logout),
+                        textColor: Colors.red,
+                        iconColor: Colors.red,
+                        onTap: () async {
+                          await AuthService.logout();
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(context, '/');
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ).animate(delay: 800.ms).fadeIn().slideY(),
+              ],
+            ),
+          ),
+        ),
+
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
@@ -361,34 +381,32 @@ class ProfileScreen extends ConsumerWidget {
   Widget _getAvatarWidget(String avatarId, double size) {
     // Load actual avatar images
     try {
-      return ClipOval(
-        child: Image.asset(
-          'assets/images/avatars/$avatarId.png',
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            // Fallback to icon if image fails to load
-            final avatarIcons = {
-              'avatar_cat': Icons.pets,
-              'avatar_dog': Icons.pets,
-              'avatar_bear': Icons.cruelty_free,
-              'avatar_fox': Icons.pest_control,
-              'avatar_rabbit': Icons.cruelty_free,
-              'avatar_panda': Icons.nature,
-              'avatar_lion': Icons.pets,
-              'avatar_tiger': Icons.pets,
-              'avatar_elephant': Icons.nature,
-              'avatar_giraffe': Icons.nature,
-              'avatar_default': Icons.person,
-            };
-            return Icon(
-              avatarIcons[avatarId] ?? Icons.person,
-              size: size * 0.6,
-              color: Colors.white,
-            );
-          },
-        ),
+      return Image.asset(
+        'assets/images/avatars/$avatarId.png',
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback to icon if image fails to load
+          final avatarIcons = {
+            'avatar_cat': Icons.pets,
+            'avatar_dog': Icons.pets,
+            'avatar_bear': Icons.cruelty_free,
+            'avatar_fox': Icons.pest_control,
+            'avatar_rabbit': Icons.cruelty_free,
+            'avatar_panda': Icons.nature,
+            'avatar_lion': Icons.pets,
+            'avatar_tiger': Icons.pets,
+            'avatar_elephant': Icons.nature,
+            'avatar_giraffe': Icons.nature,
+            'avatar_default': Icons.person,
+          };
+          return Icon(
+            avatarIcons[avatarId] ?? Icons.person,
+            size: size * 0.6,
+            color: Colors.white,
+          );
+        },
       );
     } catch (e) {
       // Fallback if something goes wrong
@@ -478,23 +496,21 @@ class _AvatarSelectorDialog extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ClipOval(
-                            child: Image.asset(
-                              'assets/images/avatars/${avatar['id']}.png',
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                // Fallback to icon if image fails
-                                return Icon(
-                                  Icons.pets,
-                                  size: 40,
-                                  color: isSelected
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Colors.grey[700],
-                                );
-                              },
-                            ),
+                          Image.asset(
+                            'assets/images/avatars/${avatar['id']}.png',
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Fallback to icon if image fails
+                              return Icon(
+                                Icons.pets,
+                                size: 40,
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey[700],
+                              );
+                            },
                           ),
                           const SizedBox(height: 8),
                           Text(

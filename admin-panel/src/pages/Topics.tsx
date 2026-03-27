@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Search, Plus, Trash2, Edit, Eye } from 'lucide-react';
+import { Search, Plus, Trash2, Edit } from 'lucide-react';
 import { topicService } from '../services/topicService';
-import { Topic } from '../types';
 import { format } from 'date-fns';
 
 const Topics = () => {

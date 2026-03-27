@@ -7,6 +7,49 @@ import 'package:kidpedia/data/services/api_service.dart';
 class BadgeRepository {
   final _box = HiveService.badgesBox;
 
+  String _readString(Map<String, dynamic> json, List<String> keys, {String fallback = ''}) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return fallback;
+  }
+
+  int _readInt(Map<String, dynamic> json, List<String> keys, {int fallback = 0}) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) {
+        final parsed = int.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return fallback;
+  }
+
+  BadgeModel _badgeFromJson(Map<String, dynamic> json) {
+    final id = _readString(json, ['id']);
+    final title = _readString(json, ['title', 'name'], fallback: 'Badge');
+    final description = _readString(json, ['description', 'requirement']);
+
+    return BadgeModel(
+      id: id,
+      title: title,
+      description: description,
+      iconPath: _readString(json, ['iconPath', 'iconName']),
+      category: _readString(json, ['category'], fallback: 'general'),
+      requiredCount: _readInt(json, ['requiredCount'], fallback: 1),
+      currentCount: _readInt(json, ['currentCount']),
+      isUnlocked: json['isUnlocked'] as bool? ?? false,
+      unlockedAt: json['unlockedAt'] != null
+          ? DateTime.tryParse(json['unlockedAt'].toString())
+          : null,
+    );
+  }
+
   // Sync method - return cached data immediately
   List<BadgeModel> getAllBadgesSync() {
     // Trigger background update
@@ -19,19 +62,7 @@ class BadgeRepository {
     try {
       final data = await ApiService.getBadges();
       final badges = data.map((json) {
-        return BadgeModel(
-          id: json['id'] as String,
-          title: json['title'] as String,
-          description: json['description'] as String,
-          iconPath: json['iconPath'] as String? ?? json['iconName'] as String? ?? '',
-          category: json['category'] as String? ?? 'general',
-          requiredCount: json['requiredCount'] as int,
-          currentCount: json['currentCount'] as int? ?? 0,
-          isUnlocked: json['isUnlocked'] as bool? ?? false,
-          unlockedAt: json['unlockedAt'] != null 
-              ? DateTime.parse(json['unlockedAt'] as String)
-              : null,
-        );
+        return _badgeFromJson(Map<String, dynamic>.from(json as Map));
       }).toList();
       await saveBadges(badges);
     } catch (e) {
@@ -66,7 +97,23 @@ class BadgeRepository {
   // Save multiple badges
   Future<void> saveBadges(List<BadgeModel> badges) async {
     final Map<String, BadgeModel> badgesMap = {
-      for (var badge in badges) badge.id: badge
+      for (var badge in badges)
+        badge.id: (() {
+          final existing = getBadgeById(badge.id);
+          if (existing == null) {
+            return badge;
+          }
+
+          final mergedCount = existing.currentCount > badge.currentCount
+              ? existing.currentCount
+              : badge.currentCount;
+
+          return badge.copyWith(
+            isUnlocked: existing.isUnlocked,
+            unlockedAt: existing.unlockedAt,
+            currentCount: mergedCount,
+          );
+        })()
     };
     await _box.putAll(badgesMap);
   }

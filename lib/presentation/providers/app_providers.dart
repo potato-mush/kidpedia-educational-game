@@ -342,6 +342,11 @@ class UserProfileNotifier extends StateNotifier<UserProfileModel?> {
     await _repository.updateAvatar(avatarId);
     _loadProfile();
   }
+
+  Future<void> setCurrentUser(UserProfileModel profile) async {
+    await _repository.saveCurrentUser(profile);
+    _loadProfile();
+  }
 }
 
 // Leaderboard Provider - StateNotifier for reactive updates

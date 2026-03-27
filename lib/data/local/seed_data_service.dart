@@ -1,58 +1,48 @@
 import 'package:flutter/foundation.dart';
 import 'package:kidpedia/data/models/badge_model.dart';
-import 'package:kidpedia/data/models/user_profile_model.dart';
-import 'package:kidpedia/data/models/leaderboard_entry_model.dart';
+import 'package:kidpedia/data/models/game_score_model.dart';
+import 'package:kidpedia/data/models/progress_model.dart';
 import 'package:kidpedia/data/repositories/topic_repository.dart';
 import 'package:kidpedia/data/repositories/game_repository.dart';
 import 'package:kidpedia/data/repositories/badge_repository.dart';
+import 'package:kidpedia/data/repositories/progress_repository.dart';
 import 'package:kidpedia/data/repositories/user_profile_repository.dart';
 import 'package:kidpedia/data/repositories/leaderboard_repository.dart';
 import 'package:kidpedia/data/local/bot_players_service.dart';
+import 'package:kidpedia/data/local/hive_service.dart';
 import 'package:kidpedia/core/constants/app_constants.dart';
-import 'package:uuid/uuid.dart';
+import 'package:kidpedia/data/services/api_service.dart';
+import 'package:kidpedia/data/services/badge_service.dart';
 
 class SeedDataService {
-  static const _uuid = Uuid();
-
   static Future<void> seedAll() async {
     final badgeRepo = BadgeRepository();
     final userRepo = UserProfileRepository();
     final leaderboardRepo = LeaderboardRepository();
+    final gameRepo = GameRepository();
 
-    // Initialize user profile if doesn't exist
-    var currentUser = userRepo.getCurrentUser();
-    if (currentUser == null) {
-      final userId = _uuid.v4();
-      currentUser = UserProfileModel(
-        id: userId,
-        username: 'Young Explorer',
-        avatarId: 'avatar_cat',
-        createdAt: DateTime.now(),
-        lastUpdated: DateTime.now(),
-      );
-      await userRepo.saveCurrentUser(currentUser);
-    }
+    // Seed badge definitions first, then restore and re-evaluate unlock state.
+    await _seedBadges(badgeRepo);
 
-    // Add current user to leaderboard if not exists
-    final userLeaderboardEntry = leaderboardRepo.getUserEntry(currentUser.id);
-    if (userLeaderboardEntry == null) {
-      final userEntry = LeaderboardEntryModel(
-        id: currentUser.id,
-        playerName: currentUser.username,
-        totalScore: 0,
-        gamesWon: 0,
-        topicsRead: 0,
-        avatarId: currentUser.avatarId,
-        isCurrentUser: true,
-        lastUpdated: DateTime.now(),
+    // Add authenticated current user to leaderboard if available.
+    final currentUser = userRepo.getCurrentUser();
+    if (currentUser != null) {
+      await _syncUserStateFromBackend(currentUser.id);
+
+      final badgeService = BadgeService(
+        badgeRepository: badgeRepo,
+        gameRepository: gameRepo,
+        progressRepository: ProgressRepository(),
+        leaderboardRepository: leaderboardRepo,
       );
-      await leaderboardRepo.addBotPlayer(userEntry);
+      await badgeService.checkAndUpdateAllBadges();
+
+      await leaderboardRepo.updateUserStats(currentUser.id);
     }
 
     // NOTE: Topics and Games are now fetched from the backend server
     // Fetch initial data from API on first launch
     final topicRepo = TopicRepository();
-    final gameRepo = GameRepository();
     
     try {
       // Fetch topics and games from backend API
@@ -64,11 +54,90 @@ class SeedDataService {
       debugPrint('⚠️  Make sure backend server is running at http://localhost:8080');
     }
     
-    // Seed Badges (these are small and don't require media)
-    await _seedBadges(badgeRepo);
-
     // Generate bot players for leaderboard
     await BotPlayersService.generateBotPlayers();
+  }
+
+  static Future<void> _syncUserStateFromBackend(String userId) async {
+    try {
+      final snapshot = await ApiService.getUserSnapshot(userId);
+      if (snapshot == null) {
+        return;
+      }
+
+      final rawScores = (snapshot['gameScores'] as List<dynamic>? ?? const []);
+      final rawProgress = (snapshot['progress'] as List<dynamic>? ?? const []);
+      final rawBookmarks = (snapshot['bookmarks'] as List<dynamic>? ?? const []);
+
+      final scores = rawScores
+          .whereType<Map>()
+          .map((item) {
+            final json = Map<String, dynamic>.from(item);
+            final scoreValue = (json['score'] as num?)?.toInt() ?? 0;
+            final completedAt = DateTime.tryParse((json['completedAt'] ?? '').toString()) ??
+                DateTime.now();
+            return GameScoreModel(
+              id: (json['id'] ?? '').toString(),
+              gameId: (json['gameId'] ?? '').toString(),
+              gameType: (json['gameType'] ?? '').toString(),
+              score: scoreValue,
+              maxScore: scoreValue > 0 ? scoreValue : 100,
+              completedAt: completedAt,
+              timeSpentSeconds: (json['timeTaken'] as num?)?.toInt() ?? 0,
+              difficulty: (json['difficulty'] ?? 'easy').toString(),
+              isWon: scoreValue > 0,
+            );
+          })
+          .toList();
+
+      final progressEntries = rawProgress
+          .whereType<Map>()
+          .map((item) {
+            final json = Map<String, dynamic>.from(item);
+            final lastViewed = DateTime.tryParse((json['lastAccessedAt'] ?? '').toString()) ??
+                DateTime.now();
+            return ProgressModel(
+              topicId: (json['topicId'] ?? '').toString(),
+              lastViewed: lastViewed,
+              viewCount: 1,
+              isCompleted: true,
+              progressPercentage: 100.0,
+            );
+          })
+          .where((p) => p.topicId.isNotEmpty)
+          .toList();
+
+      final bookmarkIds = rawBookmarks
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item)['topicId'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (scores.isNotEmpty) {
+        await HiveService.gameScoresBox.clear();
+        await HiveService.gameScoresBox.putAll({
+          for (final score in scores) score.id: score,
+        });
+      }
+
+      if (progressEntries.isNotEmpty) {
+        await HiveService.progressBox.clear();
+        await HiveService.progressBox.putAll({
+          for (final progress in progressEntries) progress.topicId: progress,
+        });
+      }
+
+      if (bookmarkIds.isNotEmpty) {
+        await HiveService.bookmarksBox.clear();
+        for (final topicId in bookmarkIds) {
+          await HiveService.bookmarksBox.add(topicId);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not sync user state from backend: $e');
+    }
   }
 
   static Future<void> _seedBadges(BadgeRepository repo) async {

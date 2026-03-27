@@ -4,6 +4,9 @@ export interface UserProfile {
   avatarId: string;
   createdAt: string;
   lastUpdated: string;
+  totalScore?: number;
+  gamesPlayed?: number;
+  lastPlayedAt?: string | null;
 }
 
 export interface Topic {
@@ -57,6 +60,12 @@ export interface GameScore {
   score: number;
   completedAt: string;
   timeTaken: number;
+  game?: {
+    id: string;
+    title: string;
+    type: string;
+    difficulty: string;
+  };
 }
 
 export interface Progress {

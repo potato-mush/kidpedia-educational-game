@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Trash2, Eye } from 'lucide-react';
+import { Search, Trash2, Eye, Download, FileDown } from 'lucide-react';
 import { userService } from '../services/userService';
 import { UserProfile } from '../types';
 import { format } from 'date-fns';
@@ -8,6 +8,8 @@ import { format } from 'date-fns';
 const Users = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [exportingUserId, setExportingUserId] = useState<string | null>(null);
+  const [exportingAll, setExportingAll] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: users, isLoading } = useQuery({
@@ -32,10 +34,36 @@ const Users = () => {
     }
   };
 
+  const handleExportScores = async (user: UserProfile) => {
+    try {
+      setExportingUserId(user.id);
+      await userService.exportUserScores(user);
+    } finally {
+      setExportingUserId(null);
+    }
+  };
+
+  const handleExportAllScores = async () => {
+    try {
+      setExportingAll(true);
+      await userService.exportAllScores();
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Users</h1>
+        <button
+          onClick={handleExportAllScores}
+          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
+          disabled={exportingAll}
+        >
+          <FileDown className="h-5 w-5" />
+          {exportingAll ? 'Exporting...' : 'Export All Scores'}
+        </button>
       </div>
 
       {/* Search bar */}
@@ -67,6 +95,12 @@ const Users = () => {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                 Last Updated
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Total Score
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Games Played
+              </th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                 Actions
               </th>
@@ -75,13 +109,13 @@ const Users = () => {
           <tbody className="divide-y divide-gray-200 bg-white">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                   Loading...
                 </td>
               </tr>
             ) : filteredUsers?.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                   No users found
                 </td>
               </tr>
@@ -100,16 +134,32 @@ const Users = () => {
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                     {format(new Date(user.lastUpdated), 'MMM dd, yyyy')}
                   </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-gray-800">
+                    {user.totalScore ?? 0}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                    {user.gamesPlayed ?? 0}
+                  </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                     <button
                       onClick={() => setSelectedUser(user)}
                       className="mr-3 text-primary-600 hover:text-primary-900"
+                      title="View details"
                     >
                       <Eye className="h-5 w-5" />
                     </button>
                     <button
+                      onClick={() => handleExportScores(user)}
+                      className="mr-3 text-emerald-600 hover:text-emerald-800"
+                      title="Export scores"
+                      disabled={exportingUserId === user.id}
+                    >
+                      <Download className="h-5 w-5" />
+                    </button>
+                    <button
                       onClick={() => handleDeleteUser(user.id)}
                       className="text-red-600 hover:text-red-900"
+                      title="Delete user"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
@@ -139,7 +189,22 @@ const Users = () => {
                 <label className="text-sm font-medium text-gray-700">User ID</label>
                 <p className="text-gray-900">{selectedUser.id}</p>
               </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Total Score</label>
+                <p className="text-gray-900">{selectedUser.totalScore ?? 0}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Games Played</label>
+                <p className="text-gray-900">{selectedUser.gamesPlayed ?? 0}</p>
+              </div>
             </div>
+            <button
+              onClick={() => handleExportScores(selectedUser)}
+              className="mt-4 w-full rounded-lg bg-emerald-500 px-4 py-2 text-white hover:bg-emerald-600"
+              disabled={exportingUserId === selectedUser.id}
+            >
+              {exportingUserId === selectedUser.id ? 'Exporting...' : 'Export Scores (CSV)'}
+            </button>
             <button
               onClick={() => setSelectedUser(null)}
               className="mt-6 w-full rounded-lg bg-gray-200 px-4 py-2 hover:bg-gray-300"

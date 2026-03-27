@@ -48,4 +48,37 @@ export const userService = {
     const response = await api.get('/users/statistics');
     return response.data;
   },
+
+  // Export user scores as CSV
+  exportUserScores: async (user: UserProfile): Promise<void> => {
+    const response = await api.get(`/users/${user.id}/scores/export`, {
+      responseType: 'blob',
+    });
+
+    const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    const safeUsername = user.username.replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.href = blobUrl;
+    link.setAttribute('download', `${safeUsername}_scores.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  },
+
+  // Export all children scores as CSV
+  exportAllScores: async (): Promise<void> => {
+    const response = await api.get('/users/export/all-scores', {
+      responseType: 'blob',
+    });
+
+    const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', `all_children_scores_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(blobUrl);
+  },
 };

@@ -28,6 +28,10 @@ const formatGame = (game: any) => ({
   configurationData: JSON.parse(game.configurationData),
 });
 
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === 'string' && value.trim().length > 0;
+};
+
 // Public endpoints for mobile app (no authentication required)
 
 // Get all topics
@@ -163,6 +167,332 @@ router.post('/topics/:id/read', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error incrementing read count:', error);
     res.status(500).json({ error: 'Failed to increment read count' });
+  }
+});
+
+// Create/update child profile from app
+router.post('/users/upsert', async (req: Request, res: Response) => {
+  try {
+    const { id, username, avatarId } = req.body as {
+      id?: unknown;
+      username?: unknown;
+      avatarId?: unknown;
+    };
+
+    if (!isNonEmptyString(id) || !isNonEmptyString(username) || !isNonEmptyString(avatarId)) {
+      return res.status(400).json({
+        error: 'id, username, and avatarId are required string fields'
+      });
+    }
+
+    const user = await prisma.user.upsert({
+      where: { id },
+      update: {
+        username: username.trim(),
+        avatarId: avatarId.trim(),
+      },
+      create: {
+        id,
+        username: username.trim(),
+        avatarId: avatarId.trim(),
+      },
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error upserting user:', error);
+    res.status(500).json({ error: 'Failed to upsert user' });
+  }
+});
+
+// Get child profile by username (used by app sign-in recovery)
+router.get('/users/by-username/:username', async (req: Request, res: Response) => {
+  try {
+    const username = decodeURIComponent(req.params.username || '').trim();
+    if (!username) {
+      return res.status(400).json({ error: 'username is required' });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        username,
+      },
+      select: {
+        id: true,
+        username: true,
+        avatarId: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user by username:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// Get user activity snapshot for app state restore
+router.get('/users/:id/snapshot', async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    if (!isNonEmptyString(userId)) {
+      return res.status(400).json({ error: 'user id is required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [scores, progress, bookmarks] = await Promise.all([
+      prisma.gameScore.findMany({
+        where: { userId },
+        include: {
+          game: {
+            select: {
+              type: true,
+              difficulty: true,
+            },
+          },
+        },
+      }),
+      prisma.progress.findMany({
+        where: { userId },
+        select: {
+          topicId: true,
+          lastAccessedAt: true,
+        },
+      }),
+      prisma.bookmark.findMany({
+        where: { userId },
+        select: {
+          topicId: true,
+        },
+      }),
+    ]);
+
+    res.json({
+      gameScores: scores.map((s) => ({
+        id: s.id,
+        gameId: s.gameId,
+        gameType: s.game.type,
+        score: s.score,
+        timeTaken: s.timeTaken,
+        completedAt: s.completedAt.toISOString(),
+        difficulty: s.game.difficulty,
+      })),
+      progress: progress.map((p) => ({
+        topicId: p.topicId,
+        lastAccessedAt: p.lastAccessedAt.toISOString(),
+      })),
+      bookmarks: bookmarks.map((b) => ({
+        topicId: b.topicId,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching user snapshot:', error);
+    res.status(500).json({ error: 'Failed to fetch user snapshot' });
+  }
+});
+
+// Upsert topic progress for a user
+router.post('/users/:id/progress', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.params.id || '').trim();
+    const { topicId, lastAccessedAt } = req.body as {
+      topicId?: unknown;
+      lastAccessedAt?: unknown;
+    };
+
+    if (!isNonEmptyString(userId) || !isNonEmptyString(topicId)) {
+      return res.status(400).json({ error: 'user id and topicId are required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId },
+      select: { id: true },
+    });
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    const accessedAt = isNonEmptyString(lastAccessedAt)
+      ? new Date(lastAccessedAt)
+      : new Date();
+
+    const progress = await prisma.progress.upsert({
+      where: {
+        userId_topicId: {
+          userId,
+          topicId,
+        },
+      },
+      update: {
+        lastAccessedAt: accessedAt,
+      },
+      create: {
+        userId,
+        topicId,
+        gamesCompleted: '[]',
+        totalScore: 0,
+        lastAccessedAt: accessedAt,
+      },
+      select: {
+        userId: true,
+        topicId: true,
+        lastAccessedAt: true,
+      },
+    });
+
+    res.json(progress);
+  } catch (error) {
+    console.error('Error upserting user progress:', error);
+    res.status(500).json({ error: 'Failed to save user progress' });
+  }
+});
+
+// Add bookmark for a user
+router.post('/users/:id/bookmarks', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.params.id || '').trim();
+    const { topicId } = req.body as { topicId?: unknown };
+
+    if (!isNonEmptyString(userId) || !isNonEmptyString(topicId)) {
+      return res.status(400).json({ error: 'user id and topicId are required' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const topic = await prisma.topic.findUnique({
+      where: { id: topicId },
+      select: { id: true },
+    });
+    if (!topic) {
+      return res.status(404).json({ error: 'Topic not found' });
+    }
+
+    const bookmark = await prisma.bookmark.upsert({
+      where: {
+        userId_topicId: {
+          userId,
+          topicId,
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        topicId,
+      },
+      select: {
+        userId: true,
+        topicId: true,
+      },
+    });
+
+    res.json(bookmark);
+  } catch (error) {
+    console.error('Error adding bookmark:', error);
+    res.status(500).json({ error: 'Failed to add bookmark' });
+  }
+});
+
+// Remove bookmark for a user
+router.delete('/users/:id/bookmarks/:topicId', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.params.id || '').trim();
+    const topicId = (req.params.topicId || '').trim();
+
+    if (!isNonEmptyString(userId) || !isNonEmptyString(topicId)) {
+      return res.status(400).json({ error: 'user id and topicId are required' });
+    }
+
+    await prisma.bookmark.deleteMany({
+      where: {
+        userId,
+        topicId,
+      },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error removing bookmark:', error);
+    res.status(500).json({ error: 'Failed to remove bookmark' });
+  }
+});
+
+// Submit game score from app
+router.post('/scores', async (req: Request, res: Response) => {
+  try {
+    const { userId, gameId, score, timeTaken, completedAt } = req.body as {
+      userId?: unknown;
+      gameId?: unknown;
+      score?: unknown;
+      timeTaken?: unknown;
+      completedAt?: unknown;
+    };
+
+    if (!isNonEmptyString(userId) || !isNonEmptyString(gameId)) {
+      return res.status(400).json({ error: 'userId and gameId are required string fields' });
+    }
+
+    if (typeof score !== 'number' || Number.isNaN(score)) {
+      return res.status(400).json({ error: 'score must be a valid number' });
+    }
+
+    if (typeof timeTaken !== 'number' || Number.isNaN(timeTaken)) {
+      return res.status(400).json({ error: 'timeTaken must be a valid number' });
+    }
+
+    const game = await prisma.game.findUnique({ where: { id: gameId } });
+    if (!game) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({
+        error: 'User not found. Call /api/public/users/upsert first.'
+      });
+    }
+
+    const scoreRecord = await prisma.gameScore.create({
+      data: {
+        userId,
+        gameId,
+        score: Math.max(0, Math.round(score)),
+        timeTaken: Math.max(0, Math.round(timeTaken)),
+        completedAt: isNonEmptyString(completedAt)
+          ? new Date(completedAt)
+          : new Date(),
+      },
+    });
+
+    res.status(201).json(scoreRecord);
+  } catch (error) {
+    console.error('Error submitting score:', error);
+    res.status(500).json({ error: 'Failed to submit score' });
   }
 });
 

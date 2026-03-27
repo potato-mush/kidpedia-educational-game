@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Primary Colors - Vibrant and Kid-Friendly
-  static const Color primaryColor = Color(0xFF6C63FF);
-  static const Color secondaryColor = Color(0xFFFF6B9D);
-  static const Color accentColor = Color(0xFFFFC107);
+  static const Color primaryColor = Color(0xFF00A8E8);
+  static const Color secondaryColor = Color(0xFFFF7A59);
+  static const Color accentColor = Color(0xFFFFD166);
   
   // Category Colors
-  static const Color animalsColor = Color(0xFF4CAF50);
-  static const Color spaceColor = Color(0xFF2196F3);
-  static const Color scienceColor = Color(0xFF9C27B0);
-  static const Color historyColor = Color(0xFFFF9800);
-  static const Color geographyColor = Color(0xFF00BCD4);
+  static const Color animalsColor = Color(0xFF35B56A);
+  static const Color spaceColor = Color(0xFF2F7DFF);
+  static const Color scienceColor = Color(0xFF9C6DFF);
+  static const Color historyColor = Color(0xFFFF9B42);
+  static const Color geographyColor = Color(0xFF00C2B8);
   
   // Semantic Colors
   static const Color successColor = Color(0xFF4CAF50);
@@ -20,7 +20,7 @@ class AppTheme {
   static const Color infoColor = Color(0xFF2196F3);
   
   // Background Colors
-  static const Color lightBackground = Color(0xFFF5F7FA);
+  static const Color lightBackground = Color(0xFFFFF9EC);
   static const Color darkBackground = Color(0xFF1A1A2E);
   static const Color cardLightBackground = Colors.white;
   static const Color cardDarkBackground = Color(0xFF16213E);

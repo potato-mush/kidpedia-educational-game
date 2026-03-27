@@ -1,4 +1,5 @@
 import 'package:kidpedia/data/local/hive_service.dart';
+import 'package:kidpedia/data/services/api_service.dart';
 
 class BookmarkRepository {
   final _box = HiveService.bookmarksBox;
@@ -28,6 +29,17 @@ class BookmarkRepository {
   Future<void> addBookmark(String topicId) async {
     if (!isBookmarked(topicId)) {
       await _box.add(topicId);
+      final currentUser = HiveService.userProfileBox.get('current_user');
+      if (currentUser != null) {
+        try {
+          await ApiService.addBookmark(
+            userId: currentUser.id,
+            topicId: topicId,
+          );
+        } catch (_) {
+          // Keep local bookmarks even when backend sync is temporarily unavailable.
+        }
+      }
     }
   }
 
@@ -39,6 +51,18 @@ class BookmarkRepository {
     );
     if (key != null) {
       await _box.delete(key);
+
+      final currentUser = HiveService.userProfileBox.get('current_user');
+      if (currentUser != null) {
+        try {
+          await ApiService.removeBookmark(
+            userId: currentUser.id,
+            topicId: topicId,
+          );
+        } catch (_) {
+          // Keep local bookmarks even when backend sync is temporarily unavailable.
+        }
+      }
     }
   }
 

@@ -187,6 +187,9 @@ class _QuizGameScreenState extends ConsumerState<QuizGameScreen> {
 
     if (!mounted) return;
 
+    final displayScore = (score / 100).round();
+    final displayMaxScore = questions.length;
+
     // Show badge notifications
     if (newlyUnlocked.isNotEmpty) {
       final badgeRepo = BadgeRepository();
@@ -219,22 +222,22 @@ class _QuizGameScreenState extends ConsumerState<QuizGameScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Your Score: $score / ${questions.length * 100}',
+              'Your Score: $displayScore / $displayMaxScore',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              '${(score / (questions.length * 100) * 100).toStringAsFixed(0)}% Correct',
+              '${(displayScore / displayMaxScore * 100).toStringAsFixed(0)}% Correct',
             ),
             const SizedBox(height: 8),
             Text('Time: ${duration.inSeconds}s'),
             const SizedBox(height: 16),
             LinearProgressIndicator(
-              value: score / (questions.length * 100),
+              value: displayScore / displayMaxScore,
               minHeight: 10,
               backgroundColor: Colors.grey[300],
               valueColor: AlwaysStoppedAnimation(
-                score >= (questions.length * 100 * 0.6) ? Colors.green : Colors.orange,
+                displayScore >= (displayMaxScore * 0.6) ? Colors.green : Colors.orange,
               ),
             ),
           ],
@@ -271,6 +274,7 @@ class _QuizGameScreenState extends ConsumerState<QuizGameScreen> {
   Widget build(BuildContext context) {
     final question = questions[currentQuestionIndex];
     final progress = (currentQuestionIndex + 1) / questions.length;
+    final displayScore = (score / 100).round();
 
     return Scaffold(
       appBar: AppBar(
@@ -303,7 +307,7 @@ class _QuizGameScreenState extends ConsumerState<QuizGameScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              'Score: $score',
+                              'Score: $displayScore',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,

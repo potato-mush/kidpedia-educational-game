@@ -8,6 +8,42 @@ class GameRepository {
   final _gamesBox = HiveService.gamesBox;
   final _scoresBox = HiveService.gameScoresBox;
 
+  String _readString(Map<String, dynamic> json, String key, {String fallback = ''}) {
+    final value = json[key];
+    if (value is String) return value;
+    if (value == null) return fallback;
+    return value.toString();
+  }
+
+  DateTime _readDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value is String) {
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+    return DateTime.now();
+  }
+
+  Map<String, dynamic> _readConfig(Map<String, dynamic> json) {
+    final config = json['configurationData'];
+    if (config is Map<String, dynamic>) {
+      return config;
+    }
+    return {};
+  }
+
+  GameModel _gameFromJson(Map<String, dynamic> json) {
+    return GameModel(
+      id: _readString(json, 'id'),
+      topicId: _readString(json, 'topicId'),
+      type: _readString(json, 'type'),
+      title: _readString(json, 'title', fallback: 'Untitled Game'),
+      description: _readString(json, 'description'),
+      difficulty: _readString(json, 'difficulty', fallback: 'easy'),
+      configurationData: _readConfig(json),
+      createdAt: _readDateTime(json, 'createdAt'),
+    );
+  }
+
   // Helper method to check if a game is valid
   bool _isValidGame(GameModel game) {
     if (game.type == 'sound_match') {
@@ -23,20 +59,10 @@ class GameRepository {
   Future<List<GameModel>> getAllGames() async {
     try {
       final data = await ApiService.getGames();
-      final games = data.map((json) {
-        return GameModel(
-          id: json['id'] as String,
-          topicId: json['topicId'] as String,
-          type: json['type'] as String,
-          title: json['title'] as String,
-          description: json['description'] as String? ?? '',
-          difficulty: json['difficulty'] as String,
-          configurationData: json['configurationData'] as Map<String, dynamic>? ?? {},
-          createdAt: json['createdAt'] != null 
-              ? DateTime.parse(json['createdAt'] as String) 
-              : DateTime.now(),
-        );
-      }).toList();
+      final games = data
+          .whereType<Map>()
+          .map((json) => _gameFromJson(Map<String, dynamic>.from(json)))
+          .toList();
       await saveGames(games);
       return games.where(_isValidGame).toList();
     } catch (e) {
@@ -77,20 +103,10 @@ class GameRepository {
   void _updateGamesFromApi() async {
     try {
       final data = await ApiService.getGames();
-      final games = data.map((json) {
-        return GameModel(
-          id: json['id'] as String,
-          topicId: json['topicId'] as String,
-          type: json['type'] as String,
-          title: json['title'] as String,
-          description: json['description'] as String? ?? '',
-          difficulty: json['difficulty'] as String,
-          configurationData: json['configurationData'] as Map<String, dynamic>? ?? {},
-          createdAt: json['createdAt'] != null 
-              ? DateTime.parse(json['createdAt'] as String) 
-              : DateTime.now(),
-        );
-      }).toList();
+      final games = data
+          .whereType<Map>()
+          .map((json) => _gameFromJson(Map<String, dynamic>.from(json)))
+          .toList();
       await saveGames(games);
     } catch (e) {
       debugPrint('Background API fetch failed: $e');
@@ -100,18 +116,7 @@ class GameRepository {
   void _updateGameFromApi(String id) async {
     try {
       final json = await ApiService.getGameById(id);
-      final game = GameModel(
-        id: json['id'] as String,
-        topicId: json['topicId'] as String,
-        type: json['type'] as String,
-        title: json['title'] as String,
-        description: json['description'] as String? ?? '',
-        difficulty: json['difficulty'] as String,
-        configurationData: json['configurationData'] as Map<String, dynamic>? ?? {},
-        createdAt: json['createdAt'] != null 
-            ? DateTime.parse(json['createdAt'] as String) 
-            : DateTime.now(),
-      );
+      final game = _gameFromJson(json);
       await saveGame(game);
     } catch (e) {
       debugPrint('Background API fetch failed: $e');
@@ -121,20 +126,10 @@ class GameRepository {
   void _updateGamesByTypeFromApi(String type) async {
     try {
       final data = await ApiService.getGamesByType(type);
-      final games = data.map((json) {
-        return GameModel(
-          id: json['id'] as String,
-          topicId: json['topicId'] as String,
-          type: json['type'] as String,
-          title: json['title'] as String,
-          description: json['description'] as String? ?? '',
-          difficulty: json['difficulty'] as String,
-          configurationData: json['configurationData'] as Map<String, dynamic>? ?? {},
-          createdAt: json['createdAt'] != null 
-              ? DateTime.parse(json['createdAt'] as String) 
-              : DateTime.now(),
-        );
-      }).toList();
+      final games = data
+          .whereType<Map>()
+          .map((json) => _gameFromJson(Map<String, dynamic>.from(json)))
+          .toList();
       await saveGames(games);
     } catch (e) {
       debugPrint('Background API fetch failed: $e');
@@ -181,6 +176,39 @@ class GameRepository {
   // Save game score
   Future<void> saveGameScore(GameScoreModel score) async {
     await _scoresBox.put(score.id, score);
+
+    final currentUser = HiveService.userProfileBox.get('current_user');
+    if (currentUser == null) {
+      return;
+    }
+
+    try {
+      // Keep the backend user profile in sync before score submission.
+      await ApiService.upsertUserProfile(
+        id: currentUser.id,
+        username: currentUser.username,
+        avatarId: currentUser.avatarId,
+      );
+
+      await ApiService.submitGameScore(
+        userId: currentUser.id,
+        gameId: score.gameId,
+        score: score.score,
+        timeTaken: score.timeSpentSeconds,
+        completedAt: score.completedAt,
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 && e.message.contains('Game not found')) {
+        debugPrint(
+          '⚠️ Score saved locally; remote game not found for gameId=${score.gameId}.',
+        );
+        return;
+      }
+
+      debugPrint('⚠️ Score saved locally but sync failed: $e');
+    } catch (e) {
+      debugPrint('⚠️ Score saved locally but sync failed: $e');
+    }
   }
 
   // Get scores for a game

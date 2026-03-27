@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:kidpedia/data/models/user_profile_model.dart';
+import 'package:kidpedia/data/services/api_service.dart';
 
 class UserProfileRepository {
   static const _boxName = 'user_profile';
@@ -15,6 +16,16 @@ class UserProfileRepository {
   // Save/Update current user
   Future<void> saveCurrentUser(UserProfileModel profile) async {
     await _box.put(_currentUserKey, profile);
+
+    try {
+      await ApiService.upsertUserProfile(
+        id: profile.id,
+        username: profile.username,
+        avatarId: profile.avatarId,
+      );
+    } catch (_) {
+      // Keep local profile available even if backend is temporarily offline.
+    }
   }
 
   // Update username

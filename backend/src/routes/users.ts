@@ -34,9 +34,38 @@ router.get('/statistics', authenticateToken, async (req: Request, res: Response)
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
-    res.json(users);
+
+    const scoreStats = await prisma.gameScore.groupBy({
+      by: ['userId'],
+      _sum: { score: true },
+      _count: { id: true },
+      _max: { completedAt: true },
+    });
+
+    const scoreStatsMap = new Map(
+      scoreStats.map((item) => [
+        item.userId,
+        {
+          totalScore: item._sum.score ?? 0,
+          gamesPlayed: item._count.id,
+          lastPlayedAt: item._max.completedAt,
+        },
+      ]),
+    );
+
+    const enrichedUsers = users.map((user) => {
+      const stats = scoreStatsMap.get(user.id);
+      return {
+        ...user,
+        totalScore: stats?.totalScore ?? 0,
+        gamesPlayed: stats?.gamesPlayed ?? 0,
+        lastPlayedAt: stats?.lastPlayedAt ?? null,
+      };
+    });
+
+    res.json(enrichedUsers);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
@@ -106,6 +135,114 @@ router.get('/:id/scores', authenticateToken, async (req: Request, res: Response)
     res.json(scores);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch user scores' });
+  }
+});
+
+// Export user scores as CSV
+router.get('/:id/scores/export', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const scores = await prisma.gameScore.findMany({
+      where: { userId: req.params.id },
+      include: { game: true },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    const escapeCsv = (value: string | number | null | undefined) => {
+      const text = value == null ? '' : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const header = [
+      'username',
+      'avatarId',
+      'gameTitle',
+      'gameType',
+      'difficulty',
+      'score',
+      'timeTakenSeconds',
+      'completedAt',
+    ];
+
+    const rows = scores.map((score) => [
+      user.username,
+      user.avatarId,
+      score.game.title,
+      score.game.type,
+      score.game.difficulty,
+      score.score,
+      score.timeTaken,
+      score.completedAt.toISOString(),
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => escapeCsv(cell)).join(','))
+      .join('\n');
+
+    const safeUsername = user.username.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${safeUsername}_scores.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(csv);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to export user scores' });
+  }
+});
+
+// Export all users' scores as CSV
+router.get('/export/all-scores', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const allScores = await prisma.gameScore.findMany({
+      include: { user: true, game: true },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    const escapeCsv = (value: string | number | null | undefined) => {
+      const text = value == null ? '' : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const header = [
+      'username',
+      'avatarId',
+      'gameTitle',
+      'gameType',
+      'difficulty',
+      'score',
+      'timeTakenSeconds',
+      'completedAt',
+    ];
+
+    const rows = allScores.map((score) => [
+      score.user.username,
+      score.user.avatarId,
+      score.game.title,
+      score.game.type,
+      score.game.difficulty,
+      score.score,
+      score.timeTaken,
+      score.completedAt.toISOString(),
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map((cell) => escapeCsv(cell)).join(','))
+      .join('\n');
+
+    const fileName = `all_children_scores_${new Date().toISOString().split('T')[0]}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(csv);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to export all scores' });
   }
 });
 

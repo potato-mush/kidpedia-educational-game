@@ -34,14 +34,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final searchResults = ref.watch(searchResultsProvider);
 
     return Scaffold(
-      body: SafeArea(
-        child: _currentIndex == 0
-            ? _buildHomeContent(featuredTopics, searchQuery, searchResults)
-            : _currentIndex == 1
-                ? const GamesScreen()
-                : _currentIndex == 2
-                    ? _buildBookmarksContent()
-                    : const ProfileScreen(),
+      body: Stack(
+        children: [
+          const _PlayfulBackground(),
+          SafeArea(
+            child: _currentIndex == 0
+                ? _buildHomeContent(featuredTopics, searchQuery, searchResults)
+                : _currentIndex == 1
+                    ? const GamesScreen()
+                    : _currentIndex == 2
+                        ? _buildBookmarksContent()
+                        : const ProfileScreen(),
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
@@ -97,7 +102,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Text(
                     AppConstants.appTagline,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[600],
+                          color: const Color(0xFF6A5F45),
+                          fontWeight: FontWeight.w600,
                         ),
                   ).animate(delay: 200.ms).fadeIn(duration: 600.ms).slideX(),
                 ],
@@ -338,6 +344,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _PlayfulBackground extends StatelessWidget {
+  const _PlayfulBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final gradientColors = isDark
+        ? const [
+            Color(0xFF101828),
+            Color(0xFF1A2242),
+            Color(0xFF132F3F),
+          ]
+        : const [
+            Color(0xFFFFF3C2),
+            Color(0xFFFFE0DA),
+            Color(0xFFDFF4FF),
+          ];
+
+    final orbColors = isDark
+        ? const [
+            Color(0x3368E7FF),
+            Color(0x33FF8A65),
+            Color(0x334ED8A8),
+            Color(0x339D7DFF),
+          ]
+        : const [
+            Color(0x55FFB347),
+            Color(0x5560A5FA),
+            Color(0x554DD9A6),
+            Color(0x55FF7A59),
+          ];
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
+        ),
+      ),
+      child: Stack(
+        children: [
+          _BubbleOrb(top: -40, left: -30, size: 170, color: orbColors[0]),
+          _BubbleOrb(top: 80, right: -35, size: 130, color: orbColors[1]),
+          _BubbleOrb(bottom: 120, left: -20, size: 120, color: orbColors[2]),
+          _BubbleOrb(bottom: -30, right: 40, size: 150, color: orbColors[3]),
+        ],
+      ),
+    );
+  }
+}
+
+class _BubbleOrb extends StatelessWidget {
+  final double? top;
+  final double? right;
+  final double? bottom;
+  final double? left;
+  final double size;
+  final Color color;
+
+  const _BubbleOrb({
+    this.top,
+    this.right,
+    this.bottom,
+    this.left,
+    required this.size,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: top,
+      right: right,
+      bottom: bottom,
+      left: left,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+        ),
+      ),
     );
   }
 }

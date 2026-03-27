@@ -133,13 +133,27 @@ class LeaderboardRepository {
     final userProfile = _userProfileBox.get('current_user');
     if (userProfile == null) return;
     
+    final existingEntry = getUserEntry(userId);
+
+    // Prevent accidental resets by never writing lower aggregate values
+    // than an already stored leaderboard entry.
+    final safeTotalScore = existingEntry != null
+        ? (totalScore > existingEntry.totalScore ? totalScore : existingEntry.totalScore)
+        : totalScore;
+    final safeGamesWon = existingEntry != null
+        ? (gamesWon > existingEntry.gamesWon ? gamesWon : existingEntry.gamesWon)
+        : gamesWon;
+    final safeTopicsRead = existingEntry != null
+        ? (topicsRead > existingEntry.topicsRead ? topicsRead : existingEntry.topicsRead)
+        : topicsRead;
+
     // Update or create leaderboard entry
     await updateUserEntry(
       userId: userId,
       username: userProfile.username,
-      totalScore: totalScore,
-      gamesWon: gamesWon,
-      topicsRead: topicsRead,
+      totalScore: safeTotalScore,
+      gamesWon: safeGamesWon,
+      topicsRead: safeTopicsRead,
       avatarId: userProfile.avatarId,
     );
   }

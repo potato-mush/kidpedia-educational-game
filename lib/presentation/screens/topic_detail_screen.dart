@@ -4,6 +4,8 @@ import 'package:kidpedia/presentation/providers/app_providers.dart';
 import 'package:kidpedia/core/theme/app_theme.dart';
 import 'package:kidpedia/presentation/widgets/topic_card.dart';
 import 'package:kidpedia/games/puzzle/puzzle_game_screen.dart';
+import 'package:kidpedia/games/quiz/quiz_game_screen.dart';
+import 'package:kidpedia/games/sound_match/sound_match_game_screen.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
@@ -438,6 +440,27 @@ class _TopicDetailScreenState extends ConsumerState<TopicDetailScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => PuzzleGameScreen(game: game),
+                                ),
+                              );
+                            } else if (game.type == 'sound_match') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SoundMatchGameScreen(game: game),
+                                ),
+                              );
+                            } else if (game.type == 'quiz') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => QuizGameScreen(game: game),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Unsupported game type: ${game.type}'),
+                                  backgroundColor: Colors.orange,
                                 ),
                               );
                             }

@@ -3,8 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import { Upload, Trash2, Image as ImageIcon, Video, Music, FileIcon } from 'lucide-react';
 import { mediaService } from '../services/mediaService';
-import { MediaType, MediaFile } from '../types';
-import { format } from 'date-fns';
+import { MediaType } from '../types';
 
 const Media = () => {
   const [selectedType, setSelectedType] = useState<MediaType | 'all'>('all');

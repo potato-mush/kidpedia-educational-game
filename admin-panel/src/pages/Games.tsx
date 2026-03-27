@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { Search, Plus, Trash2, Edit } from 'lucide-react';
 import { gameService } from '../services/gameService';
 import { topicService } from '../services/topicService';
-import { Game } from '../types';
 import { format } from 'date-fns';
 
 const Games = () => {
